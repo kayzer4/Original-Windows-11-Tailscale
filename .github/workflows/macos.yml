@@ -1,31 +1,49 @@
-name: Pure macOS VNC via Tailscale
+name: Pure macOS AnyDesk via Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
-  vnc-session:
+  anydesk-session:
     runs-on: macos-latest
     timeout-minutes: 360
 
     steps:
-      - name: Install TigerVNC (cask)
+      - name: Install AnyDesk
         shell: bash
         run: |
-          brew install --cask tigervnc
+          # Скачиваем AnyDesk для Mac
+          curl -L -o AnyDesk.dmg "https://download.anydesk.com/AnyDesk.dmg"
+          sudo hdiutil attach AnyDesk.dmg
+          sudo cp -R /Volumes/AnyDesk/AnyDesk.app /Applications/
+          sudo hdiutil detach /Volumes/AnyDesk
 
-      - name: Setup VNC password and start server
+      - name: Start AnyDesk and get credentials
         shell: bash
         run: |
-          VNC_PASS="vncpassword"
-          # Путь к исполняемым файлам внутри .app
-          VNC_BIN="/Applications/TigerVNC.app/Contents/MacOS"
-          mkdir -p ~/.vnc
-          echo "$VNC_PASS" | "$VNC_BIN/vncpasswd" -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-          # Запускаем сервер
-          "$VNC_BIN/vncserver" :1 -geometry 1280x720 -depth 24 -localhost no
-          echo "VNC_PASS=$VNC_PASS" >> $GITHUB_ENV
+          # Запускаем AnyDesk в фоне
+          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
+
+          # Ждём, пока сервис запустится
+          sleep 5
+
+          # Получаем ID и пароль через CLI
+          # AnyDesk имеет клиентскую программу для получения пароля
+          # Но у нас нет пароля доступа, поэтому используем статический пароль
+          # Устанавливаем пароль через файл конфигурации
+          mkdir -p ~/.anydesk
+          echo "ad.password=anydesk123" > ~/.anydesk/anydesk.conf
+
+          # Перезапускаем AnyDesk для применения конфига
+          killall AnyDesk || true
+          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
+
+          sleep 5
+
+          # Получаем ID AnyDesk
+          ID=$(/Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id)
+          echo "ANYDESK_ID=$ID" >> $GITHUB_ENV
+          echo "ANYDESK_PASS=anydesk123" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
@@ -43,13 +61,15 @@ jobs:
         shell: bash
         run: |
           echo "================================================"
-          echo "✅ MACOS VNC IS READY!"
+          echo "✅ MACOS ANYDESK IS READY!"
           echo "================================================"
-          echo "IP Address : ${{ env.TAILSCALE_IP }}"
-          echo "Password   : ${{ env.VNC_PASS }}"
+          echo "Tailscale IP: ${{ env.TAILSCALE_IP }}"
+          echo "AnyDesk ID  : ${{ env.ANYDESK_ID }}"
+          echo "Password    : ${{ env.ANYDESK_PASS }}"
           echo "================================================"
-          echo "Connect via: vnc://${{ env.TAILSCALE_IP }}"
-          echo "Password: ${{ env.VNC_PASS }}"
+          echo "Connect via AnyDesk client using the ID and password."
+          echo "You can also use Tailscale IP for direct connection if AnyDesk supports it."
+
           while true; do
             echo "✓ Active - $(date)"
             sleep 300
