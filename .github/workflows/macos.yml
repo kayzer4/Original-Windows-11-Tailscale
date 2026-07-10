@@ -9,15 +9,21 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Enable built-in VNC (Screen Sharing) with password
+      - name: Install and start TigerVNC
         shell: bash
         run: |
+          # Устанавливаем TigerVNC через Homebrew (убедимся, что это формула, а не cask)
+          brew install tigervnc --formula
+
+          # Задаём пароль VNC
           VNC_PASS="vncpassword"
-          # Включаем Remote Management и устанавливаем пароль VNC
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -restart -agent -privs -all \
-            -allowAccessFor -allUsers \
-            -setVNCPassword -VNCPassword $VNC_PASS
+          mkdir -p ~/.vnc
+          echo "$VNC_PASS" | /opt/homebrew/bin/vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+
+          # Запускаем VNC-сервер на дисплее :1, привязываемся ко всем интерфейсам
+          /opt/homebrew/bin/vncserver :1 -geometry 1280x720 -depth 24 -localhost no
+
           echo "VNC_PASS=$VNC_PASS" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
@@ -41,10 +47,9 @@ jobs:
           echo "IP Address : ${{ env.TAILSCALE_IP }}"
           echo "Password   : ${{ env.VNC_PASS }}"
           echo "================================================"
-          echo "To connect, use a VNC client (e.g., Screen Sharing on Mac)."
-          echo "In the client, enter the IP address above."
-          echo ""
-          echo "The password is: ${{ env.VNC_PASS }}"
+          echo "To connect, use a VNC client and enter the IP above."
+          echo "If using Screen Sharing on Mac: vnc://${{ env.TAILSCALE_IP }}"
+          echo "Password: ${{ env.VNC_PASS }}"
 
           # Keep session alive
           while true; do
