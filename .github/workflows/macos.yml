@@ -9,21 +9,22 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Install and start TigerVNC
+      - name: Install TigerVNC (cask)
         shell: bash
         run: |
-          # Устанавливаем TigerVNC через Homebrew (убедимся, что это формула, а не cask)
-          brew install tigervnc --formula
+          brew install --cask tigervnc
 
-          # Задаём пароль VNC
+      - name: Setup VNC password and start server
+        shell: bash
+        run: |
           VNC_PASS="vncpassword"
+          # Путь к исполняемым файлам внутри .app
+          VNC_BIN="/Applications/TigerVNC.app/Contents/MacOS"
           mkdir -p ~/.vnc
-          echo "$VNC_PASS" | /opt/homebrew/bin/vncpasswd -f > ~/.vnc/passwd
+          echo "$VNC_PASS" | "$VNC_BIN/vncpasswd" -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
-
-          # Запускаем VNC-сервер на дисплее :1, привязываемся ко всем интерфейсам
-          /opt/homebrew/bin/vncserver :1 -geometry 1280x720 -depth 24 -localhost no
-
+          # Запускаем сервер
+          "$VNC_BIN/vncserver" :1 -geometry 1280x720 -depth 24 -localhost no
           echo "VNC_PASS=$VNC_PASS" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
@@ -47,11 +48,8 @@ jobs:
           echo "IP Address : ${{ env.TAILSCALE_IP }}"
           echo "Password   : ${{ env.VNC_PASS }}"
           echo "================================================"
-          echo "To connect, use a VNC client and enter the IP above."
-          echo "If using Screen Sharing on Mac: vnc://${{ env.TAILSCALE_IP }}"
+          echo "Connect via: vnc://${{ env.TAILSCALE_IP }}"
           echo "Password: ${{ env.VNC_PASS }}"
-
-          # Keep session alive
           while true; do
             echo "✓ Active - $(date)"
             sleep 300
