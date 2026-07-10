@@ -1,49 +1,27 @@
-name: Pure macOS AnyDesk via Tailscale
+name: Pure macOS VNC via Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
-  anydesk-session:
+  vnc-session:
     runs-on: macos-latest
     timeout-minutes: 360
 
     steps:
-      - name: Install AnyDesk
+      - name: Create VNC user and enable Screen Sharing
         shell: bash
         run: |
-          # Скачиваем AnyDesk для Mac
-          curl -L -o AnyDesk.dmg "https://download.anydesk.com/AnyDesk.dmg"
-          sudo hdiutil attach AnyDesk.dmg
-          sudo cp -R /Volumes/AnyDesk/AnyDesk.app /Applications/
-          sudo hdiutil detach /Volumes/AnyDesk
+          # Создаём пользователя vncuser с паролем vncpassword (он будет администратором)
+          sudo sysadminctl -addUser vncuser -password vncpassword -admin
 
-      - name: Start AnyDesk and get credentials
-        shell: bash
-        run: |
-          # Запускаем AnyDesk в фоне
-          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
+          # Включаем удалённое управление (ARD) и разрешаем доступ для всех пользователей
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on -restart -agent -privs -all \
+            -allowAccessFor -allUsers
 
-          # Ждём, пока сервис запустится
-          sleep 5
-
-          # Получаем ID и пароль через CLI
-          # AnyDesk имеет клиентскую программу для получения пароля
-          # Но у нас нет пароля доступа, поэтому используем статический пароль
-          # Устанавливаем пароль через файл конфигурации
-          mkdir -p ~/.anydesk
-          echo "ad.password=anydesk123" > ~/.anydesk/anydesk.conf
-
-          # Перезапускаем AnyDesk для применения конфига
-          killall AnyDesk || true
-          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
-
-          sleep 5
-
-          # Получаем ID AnyDesk
-          ID=$(/Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id)
-          echo "ANYDESK_ID=$ID" >> $GITHUB_ENV
-          echo "ANYDESK_PASS=anydesk123" >> $GITHUB_ENV
+          # Сохраняем пароль в переменную окружения
+          echo "VNC_PASS=vncpassword" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
@@ -61,15 +39,17 @@ jobs:
         shell: bash
         run: |
           echo "================================================"
-          echo "✅ MACOS ANYDESK IS READY!"
+          echo "✅ MACOS VNC IS READY!"
           echo "================================================"
-          echo "Tailscale IP: ${{ env.TAILSCALE_IP }}"
-          echo "AnyDesk ID  : ${{ env.ANYDESK_ID }}"
-          echo "Password    : ${{ env.ANYDESK_PASS }}"
+          echo "IP Address : ${{ env.TAILSCALE_IP }}"
+          echo "Username   : vncuser"
+          echo "Password   : ${{ env.VNC_PASS }}"
           echo "================================================"
-          echo "Connect via AnyDesk client using the ID and password."
-          echo "You can also use Tailscale IP for direct connection if AnyDesk supports it."
+          echo "To connect, open Screen Sharing (macOS) or any VNC client."
+          echo "On Mac: Cmd+K -> vnc://${{ env.TAILSCALE_IP }}"
+          echo "Enter the username and password above."
 
+          # Keep session alive
           while true; do
             echo "✓ Active - $(date)"
             sleep 300
