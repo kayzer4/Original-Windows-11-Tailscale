@@ -9,19 +9,15 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Enable built-in VNC (Screen Sharing)
+      - name: Enable built-in VNC (Screen Sharing) with password
         shell: bash
         run: |
-          # Включаем удалённое управление (ARD)
+          VNC_PASS="vncpassword"
+          # Включаем Remote Management и устанавливаем пароль VNC
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on -restart -agent -privs -all \
-            -allowAccessFor -allUsers
-
-          # Устанавливаем пароль VNC для пользователя runneradmin
-          VNC_PASS="vncpassword"
-          sudo dscl . -passwd /Users/runneradmin $VNC_PASS
-
-          # Сохраняем пароль в переменную окружения
+            -allowAccessFor -allUsers \
+            -setVNCPassword -VNCPassword $VNC_PASS
           echo "VNC_PASS=$VNC_PASS" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
