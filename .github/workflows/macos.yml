@@ -5,34 +5,29 @@ on:
 
 jobs:
   vnc-session:
-    runs-on: macos-latest              # <-- меняем на macOS
+    runs-on: macos-latest
     timeout-minutes: 360
 
     steps:
-      - name: Install and Start VNC Server
+      - name: Enable built-in VNC (Screen Sharing)
         shell: bash
         run: |
-          # Устанавливаем TigerVNC через Homebrew
-          brew install tigervnc
+          # Включаем удалённое управление (ARD)
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on -restart -agent -privs -all \
+            -allowAccessFor -allUsers
 
-          # Создаём папку для паролей
-          mkdir -p ~/.vnc
-
-          # Устанавливаем пароль VNC (можно изменить, но он будет виден в логах)
+          # Устанавливаем пароль VNC для пользователя runneradmin
           VNC_PASS="vncpassword"
-          echo "$VNC_PASS" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
+          sudo dscl . -passwd /Users/runneradmin $VNC_PASS
 
-          # Запускаем VNC-сервер на дисплее :1
-          vncserver :1 -geometry 1280x720 -depth 24 -localhost no
-
+          # Сохраняем пароль в переменную окружения
           echo "VNC_PASS=$VNC_PASS" >> $GITHUB_ENV
-          echo "VNC_DISPLAY=:1" >> $GITHUB_ENV
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}   # используем ваш существующий секрет
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
           hostname: github-runner-${{ github.run_id }}
 
       - name: Get Tailscale IP
@@ -48,11 +43,10 @@ jobs:
           echo "✅ MACOS VNC IS READY!"
           echo "================================================"
           echo "IP Address : ${{ env.TAILSCALE_IP }}"
-          echo "Display    : ${{ env.VNC_DISPLAY }}"
           echo "Password   : ${{ env.VNC_PASS }}"
           echo "================================================"
           echo "To connect, use a VNC client (e.g., Screen Sharing on Mac)."
-          echo "In the client, enter: ${{ env.TAILSCALE_IP }}:${{ env.VNC_DISPLAY }}"
+          echo "In the client, enter the IP address above."
           echo ""
           echo "The password is: ${{ env.VNC_PASS }}"
 
